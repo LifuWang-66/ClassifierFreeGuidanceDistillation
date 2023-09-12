@@ -5,7 +5,7 @@ def main(model_config=None):
     modelConfig = {
         "state": "eval", # or eval
         "epoch": 70,
-        "batch_size": 80,
+        "batch_size": 100,
         "T": 500,
         "channel": 128,
         "channel_mult": [1, 2, 2, 2],
