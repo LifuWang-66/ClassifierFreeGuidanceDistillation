@@ -1,9 +1,9 @@
-from DiffusionFreeGuidence.TrainDistillation import train
+from DiffusionFreeGuidence.TrainDistillation import train, eval
 
 
 def main(model_config=None):
     modelConfig = {
-        "state": "train", # or eval
+        "state": "eval", # or eval
         "epoch": 70,
         "batch_size": 100,
         "T": 500,
@@ -18,20 +18,22 @@ def main(model_config=None):
         "img_size": 32,
         "grad_clip": 1.,
         "device": "cuda:0",
-        "w": 1.8,
-        "save_dir": "./CheckpointsCondition/",
-        "training_load_weight": None,
-        "test_load_weight": "ckpt_69_.pt",
+        "w": 2,
+        "teacher_save_dir": "./CheckpointsCondition/",
+        "save_dir": "./CheckpointsDistillation/",
+        "training_load_weight": "ckpt_69_.pt",
+        "test_load_weight": "ckpt_0_.pt",
         "sampled_dir": "./SampledImgs/",
         "sampledNoisyImgName": "NoisyGuidenceImgs.png",
         "sampledImgName": "SampledGuidenceImgs.png",
-        "nrow": 8
+        "nrow": 10
     }
     if model_config is not None:
         modelConfig = model_config
     if modelConfig["state"] == "train":
         train(modelConfig)
-
+    else:
+        eval(modelConfig)
 
 if __name__ == '__main__':
     main()

@@ -46,20 +46,12 @@ class TimeEmbedding(nn.Module):
         return emb
 
 class GuidanceEmbedding(nn.Module):
-    def __init__(self, T, d_model, dim):
+    def __init__(self, W, d_model, dim):
         assert d_model % 2 == 0
         super().__init__()
-        emb = torch.arange(0, d_model, step=2) / d_model * math.log(10000)
-        emb = torch.exp(-emb)
-        pos = torch.arange(T).float()
-        emb = pos[:, None] * emb[None, :]
-        assert list(emb.shape) == [T, d_model // 2]
-        emb = torch.stack([torch.sin(emb), torch.cos(emb)], dim=-1)
-        assert list(emb.shape) == [T, d_model // 2, 2]
-        emb = emb.view(T, d_model)
 
-        self.timembedding = nn.Sequential(
-            nn.Embedding.from_pretrained(emb, freeze=False),
+        self.guidanceEmbedding = nn.Sequential(
+            nn.Embedding(num_embeddings=W, embedding_dim=d_model, padding_idx=0),
             nn.Linear(d_model, dim),
             Swish(),
             nn.Linear(dim, dim),
@@ -71,8 +63,8 @@ class GuidanceEmbedding(nn.Module):
             x_proj = (2.*np.pi*x) @ B.T
             return np.concatenate([np.sin(x_proj), np.cos(x_proj)], axis=-1)
     
-    def forward(self, t):
-        emb = self.timembedding(t)
+    def forward(self, w):
+        emb = self.guidanceEmbedding(w)
         return emb
 
 class ConditionalEmbedding(nn.Module):
@@ -194,7 +186,7 @@ class ResBlock(nn.Module):
         return h
 
 
-class UNet(nn.Module):
+class DistillationUNet(nn.Module):
     def __init__(self, T, num_labels, W, ch, ch_mult, num_res_blocks, dropout):
         super().__init__()
         tdim = ch * 4
@@ -264,7 +256,7 @@ class UNet(nn.Module):
 
 if __name__ == '__main__':
     batch_size = 8
-    model = UNet(
+    model = DistillationUNet(
         T=1000, num_labels=10, W=14, ch=128, ch_mult=[1, 2, 2, 2],
         num_res_blocks=2, dropout=0.1)
     x = torch.randn(batch_size, 3, 32, 32)

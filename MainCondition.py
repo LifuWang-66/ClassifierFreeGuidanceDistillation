@@ -3,7 +3,7 @@ from DiffusionFreeGuidence.TrainCondition import train, eval
 
 def main(model_config=None):
     modelConfig = {
-        "state": "train", # or eval
+        "state": "eval", # or eval
         "epoch": 70,
         "batch_size": 100,
         "T": 500,
@@ -25,7 +25,7 @@ def main(model_config=None):
         "sampled_dir": "./SampledImgs/",
         "sampledNoisyImgName": "NoisyGuidenceImgs.png",
         "sampledImgName": "SampledGuidenceImgs.png",
-        "nrow": 8
+        "nrow": 10
     }
     if model_config is not None:
         modelConfig = model_config

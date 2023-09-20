@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 import numpy as np
-
+import time
 
 def extract(v, t, x_shape):
     """
@@ -17,11 +17,12 @@ def extract(v, t, x_shape):
 
 
 class GaussianDiffusionDistillationTrainer(nn.Module):
-    def __init__(self, teacher, model, beta_1, beta_T, T):
+    def __init__(self, teacher, model, beta_1, beta_T, T, W):
         super().__init__()
         self.teacher = teacher
         self.model = model
         self.T = T
+        self.W = W
 
         self.register_buffer(
             'betas', torch.linspace(beta_1, beta_T, T).double())
@@ -40,20 +41,20 @@ class GaussianDiffusionDistillationTrainer(nn.Module):
         """
         t = torch.randint(self.T, size=(x_0.shape[0], ), device=x_0.device)
         noise = torch.randn_like(x_0)
-        w = torch.randint(14, size=(x_0.shape[0], ), device=x_0.device)
+        w = torch.randint(self.W, size=(x_0.shape[0], ), device=x_0.device)
         z_t =   extract(self.sqrt_alphas_bar, t, x_0.shape) * x_0 + \
                 extract(self.sqrt_one_minus_alphas_bar, t, x_0.shape) * noise
         
         null_labels = torch.zeros_like(labels).to(labels.device)
         conditional_pred = self.teacher(z_t, t, labels)
         unconditional_pred = self.teacher(z_t, t, null_labels)
-        combined_score = (1. + w) * conditional_pred - w * unconditional_pred
+        combined_score = (1. + w.view(w.shape[0], 1, 1, 1)) * conditional_pred - w.view(w.shape[0], 1, 1, 1) * unconditional_pred
         loss = F.mse_loss(self.model(z_t, t, labels, w), combined_score, reduction='none')
         return loss
 
 
-class GaussianDiffusionSampler(nn.Module):
-    def __init__(self, model, beta_1, beta_T, T, w = 0.):
+class GaussianDiffusionDistillationSampler(nn.Module):
+    def __init__(self, model, beta_1, beta_T, T):
         super().__init__()
 
         self.model = model
@@ -61,7 +62,6 @@ class GaussianDiffusionSampler(nn.Module):
         ### In the classifier free guidence paper, w is the key to control the gudience.
         ### w = 0 and with label = 0 means no guidence.
         ### w > 0 and label > 0 means guidence. Guidence would be stronger if w is bigger.
-        self.w = w
 
         self.register_buffer('betas', torch.linspace(beta_1, beta_T, T).double())
         alphas = 1. - self.betas
@@ -75,17 +75,17 @@ class GaussianDiffusionSampler(nn.Module):
         assert x_t.shape == eps.shape
         return extract(self.coeff1, t, x_t.shape) * x_t - extract(self.coeff2, t, x_t.shape) * eps
 
-    def p_mean_variance(self, x_t, t, labels):
+    def p_mean_variance(self, x_t, t, labels, w):
         # below: only log_variance is used in the KL computations
         var = torch.cat([self.posterior_var[1:2], self.betas[1:]])
         var = extract(var, t, x_t.shape)
-        eps = self.model(x_t, t, labels)
-        nonEps = self.model(x_t, t, torch.zeros_like(labels).to(labels.device))
-        eps = (1. + self.w) * eps - self.w * nonEps
+        eps = self.model(x_t, t, labels, w)
+        nonEps = self.model(x_t, t, torch.zeros_like(labels).to(labels.device), w)
+        eps = (1. + w.view(w.shape[0], 1, 1, 1)) * eps - w.view(w.shape[0], 1, 1, 1) * nonEps
         xt_prev_mean = self.predict_xt_prev_mean_from_eps(x_t, t, eps=eps)
         return xt_prev_mean, var
 
-    def forward(self, x_T, labels):
+    def forward(self, x_T, labels, w):
         """
         Algorithm 2.
         """
@@ -94,7 +94,7 @@ class GaussianDiffusionSampler(nn.Module):
             if time_step % 10 == 0: 
                 print(time_step)
             t = x_t.new_ones([x_T.shape[0], ], dtype=torch.long) * time_step
-            mean, var= self.p_mean_variance(x_t=x_t, t=t, labels=labels)
+            mean, var= self.p_mean_variance(x_t=x_t, t=t, labels=labels, w=w)
             if time_step > 0:
                 noise = torch.randn_like(x_t)
             else:
