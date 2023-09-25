@@ -1,9 +1,9 @@
-from DiffusionFreeGuidence.TrainDistillation import train, eval
+from DiffusionFreeGuidence.TrainDistillation import train, eval, compare
 
 
 def main(model_config=None):
     modelConfig = {
-        "state": "eval", # or eval
+        "state": "train", # or eval
         "epoch": 70,
         "batch_size": 100,
         "T": 500,
@@ -18,11 +18,13 @@ def main(model_config=None):
         "img_size": 32,
         "grad_clip": 1.,
         "device": "cuda:0",
-        "w": 2,
+        "num_class": 10,
+        "w": 10,
         "teacher_save_dir": "./CheckpointsCondition/",
-        "save_dir": "./CheckpointsDistillation/",
-        "training_load_weight": "ckpt_69_.pt",
-        "test_load_weight": "ckpt_0_.pt",
+        "distillation_save_dir": "./CheckpointsDistillation/",
+        "distillation_training_load_weight": None,
+        "distillation_test_load_weight": "ckpt_18_.pt",
+        "teacher_test_load_weight": "ckpt_69_.pt",
         "sampled_dir": "./SampledImgs/",
         "sampledNoisyImgName": "NoisyGuidenceImgs.png",
         "sampledImgName": "SampledGuidenceImgs.png",
@@ -32,8 +34,10 @@ def main(model_config=None):
         modelConfig = model_config
     if modelConfig["state"] == "train":
         train(modelConfig)
-    else:
+    elif modelConfig["state"] == "eval":
         eval(modelConfig)
+    else:
+        compare(modelConfig)
 
 if __name__ == '__main__':
     main()
