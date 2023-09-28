@@ -3,7 +3,7 @@ from DiffusionFreeGuidence.TrainDistillation import train, eval, compare
 
 def main(model_config=None):
     modelConfig = {
-        "state": "train", # or eval
+        "state": "compare", # or eval
         "epoch": 70,
         "batch_size": 100,
         "T": 500,
@@ -11,7 +11,7 @@ def main(model_config=None):
         "channel_mult": [1, 2, 2, 2],
         "num_res_blocks": 2,
         "dropout": 0.15,
-        "lr": 1e-4,
+        "lr": 1e-5,
         "multiplier": 2.5,
         "beta_1": 1e-4,
         "beta_T": 0.028,
@@ -19,15 +19,15 @@ def main(model_config=None):
         "grad_clip": 1.,
         "device": "cuda:0",
         "num_class": 10,
-        "w": 10,
+        "w": 8,
         "teacher_save_dir": "./CheckpointsCondition/",
         "distillation_save_dir": "./CheckpointsDistillation/",
-        "distillation_training_load_weight": None,
-        "distillation_test_load_weight": "ckpt_18_.pt",
-        "teacher_test_load_weight": "ckpt_69_.pt",
+        "distillation_training_load_weight": "42",
+        "distillation_test_load_weight": "42",
+        "teacher_test_load_weight": "ckpt_99_.pt",
         "sampled_dir": "./SampledImgs/",
         "sampledNoisyImgName": "NoisyGuidenceImgs.png",
-        "sampledImgName": "SampledGuidenceImgs.png",
+        "sampledImgName": "SampledDistillationGuidenceImgs.png",
         "nrow": 10
     }
     if model_config is not None:

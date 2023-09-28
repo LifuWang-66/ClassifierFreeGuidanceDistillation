@@ -34,11 +34,11 @@ def train(modelConfig: Dict):
         dataset, batch_size=modelConfig["batch_size"], shuffle=True, num_workers=4, drop_last=True, pin_memory=True)
 
     # model setup
-    net_model = DistillationUNet(T=modelConfig["T"], num_labels=10, W= 14, ch=modelConfig["channel"], ch_mult=modelConfig["channel_mult"],
+    net_model = DistillationUNet(T=modelConfig["T"], num_labels=modelConfig["num_class"], W=modelConfig["w"], ch=modelConfig["channel"], ch_mult=modelConfig["channel_mult"],
                      num_res_blocks=modelConfig["num_res_blocks"], dropout=modelConfig["dropout"]).to(device)
     if modelConfig["distillation_training_load_weight"] is not None:
         net_model.load_state_dict(torch.load(os.path.join(
-            modelConfig["distillation_save_dir"], modelConfig["distillation_training_load_weight"]), map_location=device), strict=False)
+            modelConfig["distillation_save_dir"], "ckpt_" + modelConfig["distillation_training_load_weight"] + "_.pt"), map_location=device), strict=False)
         print("Model load weight done.")
     optimizer = torch.optim.AdamW(
         net_model.parameters(), lr=modelConfig["lr"], weight_decay=1e-4)
@@ -47,7 +47,7 @@ def train(modelConfig: Dict):
     warmUpScheduler = GradualWarmupScheduler(optimizer=optimizer, multiplier=modelConfig["multiplier"],
                                              warm_epoch=modelConfig["epoch"] // 10, after_scheduler=cosineScheduler)
     
-    teacher = UNet(T=modelConfig["T"], num_labels=10, ch=modelConfig["channel"], ch_mult=modelConfig["channel_mult"],
+    teacher = UNet(T=modelConfig["T"], num_labels=modelConfig["num_class"], ch=modelConfig["channel"], ch_mult=modelConfig["channel_mult"],
                         num_res_blocks=modelConfig["num_res_blocks"], dropout=modelConfig["dropout"]).to(device)
     ckpt = torch.load(os.path.join(
         modelConfig["teacher_save_dir"], modelConfig["teacher_test_load_weight"]), map_location=device)
@@ -55,10 +55,8 @@ def train(modelConfig: Dict):
     print("Teacher load weight done.")
     teacher.eval()
 
-
-
     trainer = GaussianDiffusionDistillationTrainer(
-        teacher, net_model, modelConfig["beta_1"], modelConfig["beta_T"], modelConfig["T"], W=10).to(device)
+        teacher, net_model, modelConfig["beta_1"], modelConfig["beta_T"], modelConfig["T"], W=modelConfig["w"]).to(device)
 
     # start training
     for e in range(modelConfig["epoch"]):
@@ -112,10 +110,10 @@ def eval(modelConfig: Dict):
                         k += 1
             labels = torch.cat(labelList, dim=0).long().to(device) + 1
             print("labels: ", labels)
-            model = DistillationUNet(T=modelConfig["T"], num_labels=10, W=14, ch=modelConfig["channel"], ch_mult=modelConfig["channel_mult"],
+            model = DistillationUNet(T=modelConfig["T"], num_labels=modelConfig["num_class"], W=modelConfig["w"], ch=modelConfig["channel"], ch_mult=modelConfig["channel_mult"],
                         num_res_blocks=modelConfig["num_res_blocks"], dropout=modelConfig["dropout"]).to(device)
             ckpt = torch.load(os.path.join(
-                modelConfig["distillation_save_dir"], modelConfig["distillation_test_load_weight"]), map_location=device)
+                modelConfig["distillation_save_dir"], "ckpt_" + modelConfig["distillation_test_load_weight"] + "_.pt"), map_location=device)
             model.load_state_dict(ckpt)
             print("model load weight done.")
             model.eval()
@@ -148,17 +146,17 @@ def compare(modelConfig: Dict):
 
     # load model and evaluate
     with torch.no_grad():
-        model = DistillationUNet(T=modelConfig["T"], num_labels=10, W=14, ch=modelConfig["channel"], ch_mult=modelConfig["channel_mult"],
+        model = DistillationUNet(T=modelConfig["T"], num_labels=modelConfig["num_class"], W=modelConfig["w"], ch=modelConfig["channel"], ch_mult=modelConfig["channel_mult"],
                     num_res_blocks=modelConfig["num_res_blocks"], dropout=modelConfig["dropout"]).to(device)
         ckpt = torch.load(os.path.join(
-            modelConfig["distillation_save_dir"], modelConfig["distillation_test_load_weight"]), map_location=device)
+            modelConfig["distillation_save_dir"], "ckpt_" +modelConfig["distillation_test_load_weight"] + "_.pt"), map_location=device)
         model.load_state_dict(ckpt)
         print("model load weight done.")
         model.eval()
         sampler = GaussianDiffusionDistillationSampler(
             model, modelConfig["beta_1"], modelConfig["beta_T"], modelConfig["T"]).to(device)
         
-        teacher_model = UNet(T=modelConfig["T"], num_labels=10, ch=modelConfig["channel"], ch_mult=modelConfig["channel_mult"],
+        teacher_model = UNet(T=modelConfig["T"], num_labels=modelConfig["num_class"], ch=modelConfig["channel"], ch_mult=modelConfig["channel_mult"],
                     num_res_blocks=modelConfig["num_res_blocks"], dropout=modelConfig["dropout"]).to(device)
         ckpt = torch.load(os.path.join(
             modelConfig["teacher_save_dir"], modelConfig["teacher_test_load_weight"]), map_location=device)
@@ -189,7 +187,7 @@ def compare(modelConfig: Dict):
         #     class_pair = torch.cat(teacher_list + student_list, dim = 0)
         #     image_list.append(class_pair)
         # image_list = torch.cat(image_list, dim = 0)
-        torch.manual_seed(42)
+        torch.manual_seed(43)
 
         wList = []
         for i in range(modelConfig["w"]):
@@ -210,20 +208,20 @@ def compare(modelConfig: Dict):
             modelConfig["sampled_dir"],  "student.png"), nrow=modelConfig["num_class"])
         
 
-        # teacher_sample_list = []
-        # for i in range(modelConfig["w"]):
-        #     labels = torch.arange(modelConfig["num_class"]) + 1
-        #     labels = labels.to(device)
-        #     # teacher_noisyImage = torch.randn(
-        #     #     size=[labels.shape[0], 3, modelConfig["img_size"], modelConfig["img_size"]], device=device)
-        #     teacher_noisyImage = noisyImage[i*modelConfig["num_class"]: (i+1) * modelConfig["num_class"], :, :, :]
-        #     teacher_sampler = GaussianDiffusionSampler(
-        #         teacher_model, modelConfig["beta_1"], modelConfig["beta_T"], modelConfig["T"], w=i).to(device)
-        #     teacher_sampledImgs = teacher_sampler(teacher_noisyImage, labels)
-        #     teacher_sampledImgs = teacher_sampledImgs * 0.5 + 0.5  # [0 ~ 1]
-        #     teacher_sample_list.append(teacher_sampledImgs)
-        # teacher_sample_list = torch.cat(teacher_sample_list, dim=0)       
-        # save_image(teacher_sample_list, os.path.join(
-        #     modelConfig["sampled_dir"],  "teacher.png"), nrow=modelConfig["num_class"])
+        teacher_sample_list = []
+        for i in range(modelConfig["w"]):
+            labels = torch.arange(modelConfig["num_class"]) + 1
+            labels = labels.to(device)
+            # teacher_noisyImage = torch.randn(
+            #     size=[labels.shape[0], 3, modelConfig["img_size"], modelConfig["img_size"]], device=device)
+            teacher_noisyImage = noisyImage[i*modelConfig["num_class"]: (i+1) * modelConfig["num_class"], :, :, :]
+            teacher_sampler = GaussianDiffusionSampler(
+                teacher_model, modelConfig["beta_1"], modelConfig["beta_T"], modelConfig["T"], w=i).to(device)
+            teacher_sampledImgs = teacher_sampler(teacher_noisyImage, labels)
+            teacher_sampledImgs = teacher_sampledImgs * 0.5 + 0.5  # [0 ~ 1]
+            teacher_sample_list.append(teacher_sampledImgs)
+        teacher_sample_list = torch.cat(teacher_sample_list, dim=0)       
+        save_image(teacher_sample_list, os.path.join(
+            modelConfig["sampled_dir"],  "teacher.png"), nrow=modelConfig["num_class"])
 
                 

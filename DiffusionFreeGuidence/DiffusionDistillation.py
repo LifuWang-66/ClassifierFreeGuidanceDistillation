@@ -80,8 +80,6 @@ class GaussianDiffusionDistillationSampler(nn.Module):
         var = torch.cat([self.posterior_var[1:2], self.betas[1:]])
         var = extract(var, t, x_t.shape)
         eps = self.model(x_t, t, labels, w)
-        nonEps = self.model(x_t, t, torch.zeros_like(labels).to(labels.device), w)
-        eps = (1. + w.view(w.shape[0], 1, 1, 1)) * eps - w.view(w.shape[0], 1, 1, 1) * nonEps
         xt_prev_mean = self.predict_xt_prev_mean_from_eps(x_t, t, eps=eps)
         return xt_prev_mean, var
 
