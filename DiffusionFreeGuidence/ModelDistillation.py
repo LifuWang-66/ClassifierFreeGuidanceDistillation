@@ -33,7 +33,7 @@ class TimeEmbedding(nn.Module):
         emb = torch.stack([torch.sin(emb), torch.cos(emb)], dim=-1)
         assert list(emb.shape) == [T, d_model // 2, 2]
         emb = emb.view(T, d_model)
-
+        
         self.timembedding = nn.Sequential(
             nn.Embedding.from_pretrained(emb, freeze=False),
             nn.Linear(d_model, dim),
@@ -47,15 +47,33 @@ class TimeEmbedding(nn.Module):
 
 class GuidanceEmbedding(nn.Module):
     def __init__(self, W, d_model, dim):
+        # assert d_model % 2 == 0
+        # super().__init__()
+
+        # self.guidanceEmbedding = nn.Sequential(
+        #     nn.Embedding(num_embeddings=W, embedding_dim=d_model, padding_idx=0),
+        #     nn.Linear(d_model, dim),
+        #     Swish(),
+        #     nn.Linear(dim, dim),
+        # )
         assert d_model % 2 == 0
         super().__init__()
-
+        emb = torch.arange(0, d_model, step=2) / d_model * math.log(10000)
+        emb = torch.exp(-emb)
+        pos = torch.arange(W).float()
+        emb = pos[:, None] * emb[None, :]
+        assert list(emb.shape) == [W, d_model // 2]
+        emb = torch.stack([torch.sin(emb), torch.cos(emb)], dim=-1)
+        assert list(emb.shape) == [W, d_model // 2, 2]
+        emb = emb.view(W, d_model)
+        
         self.guidanceEmbedding = nn.Sequential(
-            nn.Embedding(num_embeddings=W, embedding_dim=d_model, padding_idx=0),
+            nn.Embedding.from_pretrained(emb, freeze=False),
             nn.Linear(d_model, dim),
             Swish(),
             nn.Linear(dim, dim),
         )
+
     def input_mapping(x, B):
         if B is None:
             return x

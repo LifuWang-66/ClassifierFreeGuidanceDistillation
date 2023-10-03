@@ -56,7 +56,6 @@ class GaussianDiffusionDistillationTrainer(nn.Module):
 class GaussianDiffusionDistillationSampler(nn.Module):
     def __init__(self, model, beta_1, beta_T, T):
         super().__init__()
-
         self.model = model
         self.T = T
         ### In the classifier free guidence paper, w is the key to control the gudience.

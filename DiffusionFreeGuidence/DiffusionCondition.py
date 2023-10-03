@@ -49,7 +49,7 @@ class GaussianDiffusionTrainer(nn.Module):
 class GaussianDiffusionSampler(nn.Module):
     def __init__(self, model, beta_1, beta_T, T, w = 0.):
         super().__init__()
-
+        
         self.model = model
         self.T = T
         ### In the classifier free guidence paper, w is the key to control the gudience.
@@ -64,6 +64,8 @@ class GaussianDiffusionSampler(nn.Module):
         self.register_buffer('coeff1', torch.sqrt(1. / alphas))
         self.register_buffer('coeff2', self.coeff1 * (1. - alphas) / torch.sqrt(1. - alphas_bar))
         self.register_buffer('posterior_var', self.betas * (1. - alphas_bar_prev) / (1. - alphas_bar))
+
+
 
     def predict_xt_prev_mean_from_eps(self, x_t, t, eps):
         assert x_t.shape == eps.shape
