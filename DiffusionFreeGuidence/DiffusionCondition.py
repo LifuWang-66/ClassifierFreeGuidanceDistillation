@@ -101,3 +101,88 @@ class GaussianDiffusionSampler(nn.Module):
         return torch.clip(x_0, -1, 1)   
 
 
+class DDIMSampler(nn.Module):
+    def __init__(self, model, beta_1, beta_T, T, w = 0.):
+        super().__init__()
+        
+        self.model = model
+        self.T = T
+        ### In the classifier free guidence paper, w is the key to control the gudience.
+        ### w = 0 and with label = 0 means no guidence.
+        ### w > 0 and label > 0 means guidence. Guidence would be stronger if w is bigger.
+        self.w = w
+
+        self.register_buffer('betas', torch.linspace(beta_1, beta_T, T).double())
+        self.alphas = 1. - self.betas
+        self.alphas_bar = torch.cumprod(self.alphas, dim=0)
+        self.alphas_bar_prev = F.pad(self.alphas_bar, [1, 0], value=1)[:T]
+
+        self.register_buffer('coeff1', torch.sqrt(1. / self.alphas))
+        self.register_buffer('coeff2', self.coeff1 * (1. - self.alphas) / torch.sqrt(1. - self.alphas_bar))
+        self.register_buffer('posterior_var', self.betas * (1. - self.alphas_bar_prev) / (1. - self.alphas_bar))
+
+
+
+    def predict_xt_prev_mean_from_eps(self, x_t, t, eps):
+        assert x_t.shape == eps.shape
+        return extract(self.coeff1, t, x_t.shape) * x_t - extract(self.coeff2, t, x_t.shape) * eps
+
+    def p_mean_variance(self, x_t, t, labels):
+        # below: only log_variance is used in the KL computations
+        var = torch.cat([self.posterior_var[1:2], self.betas[1:]])
+        var = extract(var, t, x_t.shape)
+        eps = self.model(x_t, t, labels)
+        nonEps = self.model(x_t, t, torch.zeros_like(labels).to(labels.device))
+        eps = (1. + self.w) * eps - self.w * nonEps
+        xt_prev_mean = self.predict_xt_prev_mean_from_eps(x_t, t, eps=eps)
+        return xt_prev_mean, var
+
+    def forward(self, x_T, labels):
+        """
+        Algorithm 2.
+        """
+        x_t = x_T
+        for time_step in reversed(range(self.T)):
+            if time_step % 10 == 0: 
+                print(time_step)
+            t = x_t.new_ones([x_T.shape[0], ], dtype=torch.long) * time_step
+            mean, var= self.p_mean_variance(x_t=x_t, t=t, labels=labels)
+            if time_step > 0:
+                noise = torch.randn_like(x_t)
+            else:
+                noise = 0
+            x_t = mean + torch.sqrt(var) * noise
+            assert torch.isnan(x_t).int().sum() == 0, "nan in tensor."
+        x_0 = x_t
+        return torch.clip(x_0, -1, 1)   
+
+    def forward(self, x_T, labels):
+        n = x_T.size(0)
+        seq = range(self.T)
+        seq_next = [-1] + list(seq[:-1])
+        x0_preds = []
+        x_t = x_T
+
+        self.alphas = self.alphas.to(x_T.device)
+        self.alphas_bar = self.alphas_bar.to(x_T.device)
+        self.alphas_bar_prev = self.alphas_bar_prev.to(x_T.device)
+        
+        for i, j in zip(reversed(seq), reversed(seq_next)):
+            if i % 10 == 0: 
+                print(i)
+            t = (torch.ones(n) * i).to(x_T.device).long()
+            next_t = (torch.ones(n) * j).to(x_T.device).long()
+            at = self.alphas_bar[i]
+            at_next = self.alphas_bar_prev[i]
+            eps = self.model(x_t, t, labels)
+            non_eps = self.model(x_t, t, torch.zeros_like(labels).to(labels.device))
+            eps = (1. + self.w) * eps - self.w * non_eps
+
+            x0_t = (x_t - eps * (1 - at).sqrt()) / at.sqrt()
+            x0_preds.append(x0_t.to('cpu'))
+            c1 = 1 * ((1 - at / at_next) * (1 - at_next) / (1 - at)).sqrt()
+            c2 = ((1 - at_next) - c1 ** 2).sqrt()
+            xt_next = at_next.sqrt() * x0_t + c1 * torch.randn_like(x_T) + c2 * eps
+            x_t = xt_next
+        return torch.clip(x0_preds[-1], -1, 1)
+

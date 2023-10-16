@@ -11,10 +11,10 @@ from torchvision.datasets import CIFAR10
 from torchvision.utils import save_image
 from torchmetrics.image.fid import FrechetInceptionDistance
 
-from DiffusionFreeGuidence.DiffusionDistillation import GaussianDiffusionDistillationSampler, GaussianDiffusionDistillationTrainer
+from StageOneDistillation.DiffusionDistillation import GaussianDiffusionDistillationSampler, GaussianDiffusionDistillationTrainer
 from DiffusionFreeGuidence.DiffusionCondition import GaussianDiffusionSampler
 from DiffusionFreeGuidence.ModelCondition import UNet
-from DiffusionFreeGuidence.ModelDistillation import DistillationUNet
+from StageOneDistillation.ModelDistillation import DistillationUNet
 from Scheduler import GradualWarmupScheduler
 import os
 import time
@@ -164,29 +164,6 @@ def compare(modelConfig: Dict):
         print("teacher load weight done.")
         teacher_model.eval()
         
-        # image_list = []
-        # for i in range (modelConfig["num_class"]):
-        #     teacher_list = []
-        #     student_list = []
-        #     label = torch.tensor([i + 1]).to(device)
-        #     for j in range(modelConfig["w"]):
-        #         noisyImage = torch.randn(
-        #             size=[1, 3, modelConfig["img_size"], modelConfig["img_size"]], device=device)
-        #         teacher_sampler = GaussianDiffusionSampler(
-        #             teacher_model, modelConfig["beta_1"], modelConfig["beta_T"], modelConfig["T"], w=j).to(device)
-        #         teacher_sampledImgs = teacher_sampler(noisyImage, label)
-        #         teacher_sampledImgs = teacher_sampledImgs * 0.5 + 0.5  # [0 ~ 1]
-        #         teacher_list.append(teacher_sampledImgs)
-
-        #         # Sampled from standard normal distribution
-        #         noisyImage = torch.randn(
-        #             size=[1, 3, modelConfig["img_size"], modelConfig["img_size"]], device=device)
-        #         sampledImgs = sampler(noisyImage, label, w = torch.tensor([j]).to(device))
-        #         sampledImgs = sampledImgs * 0.5 + 0.5  # [0 ~ 1]
-        #         student_list.append(sampledImgs)
-        #     class_pair = torch.cat(teacher_list + student_list, dim = 0)
-        #     image_list.append(class_pair)
-        # image_list = torch.cat(image_list, dim = 0)
 
         wList = []
         for i in range(modelConfig["w"]):
@@ -205,12 +182,6 @@ def compare(modelConfig: Dict):
                 size=[modelConfig["num_class"], 3, modelConfig["img_size"], modelConfig["img_size"]], device=device)
         noisyImage = torch.cat([noisyImage] * modelConfig["w"], dim=0)
         
-
-
-        # sampledImgs = student_sampler(noisyImage, labelList, wList)
-        # sampledImgs = sampledImgs * 0.5 + 0.5  # [0 ~ 1]
-        # save_image(sampledImgs, os.path.join(
-        #     modelConfig["sampled_dir"],  "student.png"), nrow=modelConfig["num_class"])
 
         student_sample_list = []
         for i in range(modelConfig["w"]):

@@ -11,7 +11,7 @@ from torchvision.datasets import CIFAR10
 from torchvision.utils import save_image
 from torchmetrics.image.fid import FrechetInceptionDistance
 
-from DiffusionFreeGuidence.DiffusionCondition import GaussianDiffusionSampler, GaussianDiffusionTrainer
+from DiffusionFreeGuidence.DiffusionCondition import GaussianDiffusionSampler, GaussianDiffusionTrainer, DDIMSampler
 from DiffusionFreeGuidence.ModelCondition import UNet
 from Scheduler import GradualWarmupScheduler
 import os
@@ -120,12 +120,18 @@ def eval(modelConfig: Dict):
             saveNoisy = torch.clamp(noisyImage * 0.5 + 0.5, 0, 1)
             save_image(saveNoisy, os.path.join(
                 modelConfig["sampled_dir"],  modelConfig["sampledNoisyImgName"]), nrow=modelConfig["nrow"])
-            sampledImgs = sampler(noisyImage, labels)
-            sampledImgs = sampledImgs * 0.5 + 0.5  # [0 ~ 1]
-            save_image(sampledImgs, os.path.join(
-                modelConfig["sampled_dir"],  modelConfig["sampledImgName"]), nrow=modelConfig["nrow"])
-            fake_images.append(sampledImgs)
-        
+            # sampledImgs = sampler(noisyImage, labels)
+            # sampledImgs = sampledImgs * 0.5 + 0.5  # [0 ~ 1]
+            # save_image(sampledImgs, os.path.join(
+            #     modelConfig["sampled_dir"],  modelConfig["sampledImgName"]), nrow=modelConfig["nrow"])
+            # fake_images.append(sampledImgs)
+
+            ddim_sampler = DDIMSampler(model, modelConfig["beta_1"], modelConfig["beta_T"], modelConfig["T"], w=modelConfig["w"]).to(device)
+            ddim_sampledImgs = ddim_sampler(noisyImage, labels)
+            ddim_sampledImgs = ddim_sampledImgs * 0.5 + 0.5  # [0 ~ 1]
+            save_image(ddim_sampledImgs, os.path.join(
+                modelConfig["sampled_dir"],  "ddim_sampledImgName.png"), nrow=modelConfig["nrow"])
+
         
         fake_images = torch.cat(fake_images, dim=0)
         fid = FrechetInceptionDistance(normalize=True)

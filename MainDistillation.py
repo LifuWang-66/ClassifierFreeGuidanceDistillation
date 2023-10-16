@@ -1,9 +1,9 @@
-from DiffusionFreeGuidence.TrainDistillation import train, eval, compare
+from StageOneDistillation.TrainDistillation import train, eval, compare
 
 
 def main(model_config=None):
     modelConfig = {
-        "state": "compare", # or eval
+        "state": "eval", # or eval
         "epoch": 70,
         "batch_size": 100,
         "T": 500,
